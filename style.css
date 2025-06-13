@@ -9,6 +9,8 @@ body {
     margin: 0;
     padding: 20px;
     box-sizing: border-box;
+    direction: rtl;
+    text-align: right;
 }
 
 .container {
@@ -24,45 +26,56 @@ body {
 h1 {
     color: #0056b3;
     margin-bottom: 10px;
+    text-align: center;
 }
 
 p {
     color: #555;
     line-height: 1.6;
+    text-align: center;
 }
 
-/* منطقة عرض الكاميرا */
-#interactive.viewport {
+/* حاوية الفيديو والكاميرا */
+#video-container {
+    position: relative;
     width: 100%;
     max-width: 500px;
-    height: 300px; /* يمكن تعديل الارتفاع حسب الحاجة */
+    height: 300px; /* ارتفاع ثابت لعرض الفيديو */
     margin: 20px auto;
-    border: 2px dashed #007bff;
+    border: 2px solid #ddd;
     border-radius: 8px;
     overflow: hidden;
-    position: relative;
-    background-color: #eee;
+    background-color: #000; /* خلفية سوداء للفيديو */
     display: flex;
     justify-content: center;
     align-items: center;
-    color: #888;
-    font-size: 1.2em;
 }
 
-#interactive.viewport video {
+#video {
     width: 100%;
     height: 100%;
     object-fit: cover; /* لضمان ملء الفيديو للمنطقة */
+    transform: scaleX(-1); /* لعكس الكاميرا الأمامية إذا لزم الأمر */
+    display: none; /* مخفي مبدئيًا */
 }
 
-/* التحديد الأخضر على الباركود */
-.drawingBuffer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+#canvas {
+    display: none; /* الكانفاس مخفي دائما، يستخدم لالتقاط الصورة */
 }
+
+#overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%; /* حجم منطقة التركيز */
+    height: 30%; /* حجم منطقة التركيز */
+    border: 2px dashed #00ff00; /* إطار أخضر متقطع للتركيز */
+    pointer-events: none; /* لا يتفاعل مع الماوس */
+    display: none;
+    box-sizing: border-box;
+}
+
 
 /* منطقة النتائج */
 .results {
@@ -71,11 +84,13 @@ p {
     border: 1px solid #cceeff;
     border-radius: 8px;
     padding: 20px;
+    text-align: right;
 }
 
 .results h2 {
     color: #007bff;
     margin-top: 0;
+    text-align: center;
 }
 
 #result-box {
@@ -84,24 +99,61 @@ p {
     border-radius: 6px;
     padding: 15px;
     margin-bottom: 20px;
-    text-align: left;
+    text-align: right;
 }
 
-#barcode-value {
-    font-size: 1.2em;
+#processing-status {
+    font-size: 1.1em;
     font-weight: bold;
     color: #0056b3;
-    margin-bottom: 5px;
+    margin-bottom: 10px;
 }
 
-#detection-status {
-    font-size: 0.9em;
-    color: #666;
+#raw-text {
+    background-color: #f8f8f8;
+    border: 1px dashed #ccc;
+    padding: 10px;
+    font-family: monospace;
+    white-space: pre-wrap; /* للحفاظ على تنسيق النص الأصلي */
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    color: #444;
+}
+
+#production-date-display,
+#expiry-date-display,
+#expiry-status,
+#remaining-days {
+    font-size: 1em;
+    margin-bottom: 8px;
+}
+
+#expiry-status {
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+/* الألوان للحالة */
+.status-expired {
+    color: #dc3545; /* أحمر */
+}
+
+.status-valid {
+    color: #28a745; /* أخضر */
+}
+
+.status-warning {
+    color: #ffc107; /* أصفر / برتقالي */
+}
+
+.status-info {
+    color: #007bff; /* أزرق للمعلومات */
 }
 
 /* الأزرار */
 button {
-    background-color: #28a745; /* لون أخضر للبدء */
+    background-color: #007bff;
     color: white;
     border: none;
     padding: 12px 25px;
@@ -114,13 +166,27 @@ button {
 }
 
 button:hover {
+    background-color: #0056b3;
+}
+
+#startButton {
+    background-color: #28a745; /* أخضر للبدء */
+}
+#startButton:hover {
     background-color: #218838;
 }
 
 #stopButton {
-    background-color: #dc3545; /* لون أحمر للإيقاف */
+    background-color: #dc3545; /* أحمر للإيقاف */
 }
-
 #stopButton:hover {
     background-color: #c82333;
+}
+
+#captureButton {
+    background-color: #ffc107; /* أصفر للالتقاط */
+    color: #333;
+}
+#captureButton:hover {
+    background-color: #e0a800;
 }

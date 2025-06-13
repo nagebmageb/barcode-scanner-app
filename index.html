@@ -3,28 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مدقق الباركود</title>
+    <title>مدقق الصلاحية بالكاميرا (OCR)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>مدقق الباركود</h1>
-        <p>قم بتوجيه الكاميرا نحو الباركود لقراءته.</p>
+        <h1>مدقق الصلاحية بالكاميرا</h1>
+        <p>وجه الكاميرا نحو تاريخ الإنتاج والانتهاء.</p>
 
-        <div id="interactive" class="viewport"></div>
+        <div id="video-container">
+            <video id="video" width="100%" height="auto" autoplay playsinline></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+            <div id="overlay" style="display:none;"></div> </div>
+
+        <button id="startButton">بدء الكاميرا</button>
+        <button id="stopButton" style="display:none;">إيقاف الكاميرا</button>
+        <button id="captureButton" style="display:none;">التقاط وقراءة</button>
 
         <div class="results">
             <h2>النتائج:</h2>
             <div id="result-box">
-                <p id="barcode-value">الباركود المقروء: ---</p>
-                <p id="detection-status">حالة الكشف: لم يتم الكشف بعد</p>
+                <p id="processing-status">الحالة: لم تبدأ القراءة...</p>
+                <pre id="raw-text"></pre> <p><strong>تاريخ الإنتاج (Pyr):</strong> <span id="production-date-display">---</span></p>
+                <p><strong>تاريخ الانتهاء (Xpr):</strong> <span id="expiry-date-display">---</span></p>
+                <p id="expiry-status">حالة الصلاحية: ---</p>
+                <p id="remaining-days">الأيام المتبقية: ---</p>
             </div>
-            <button id="startButton">بدء الكشف</button>
-            <button id="stopButton" style="display:none;">إيقاف الكشف</button>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@4.1.0/dist/tesseract.min.js'></script>
     <script src="script.js"></script>
 </body>
 </html>
