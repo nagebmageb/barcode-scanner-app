@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدقق الباركود</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>مدقق الباركود</h1>
+        <p>قم بتوجيه الكاميرا نحو الباركود لقراءته.</p>
+
+        <div id="interactive" class="viewport"></div>
+
+        <div class="results">
+            <h2>النتائج:</h2>
+            <div id="result-box">
+                <p id="barcode-value">الباركود المقروء: ---</p>
+                <p id="detection-status">حالة الكشف: لم يتم الكشف بعد</p>
+            </div>
+            <button id="startButton">بدء الكشف</button>
+            <button id="stopButton" style="display:none;">إيقاف الكشف</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
