@@ -9,8 +9,8 @@ body {
     margin: 0;
     padding: 20px;
     box-sizing: border-box;
-    direction: rtl;
-    text-align: right;
+    direction: rtl; /* لاتجاه النص من اليمين لليسار */
+    text-align: right; /* لمحاذاة النص لليمين */
 }
 
 .container {
@@ -18,7 +18,7 @@ body {
     border-radius: 12px;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
     padding: 30px;
-    text-align: center;
+    text-align: center; /* الوسط للمحتوى الرئيسي */
     max-width: 600px;
     width: 100%;
 }
@@ -55,7 +55,8 @@ p {
     width: 100%;
     height: 100%;
     object-fit: cover; /* لضمان ملء الفيديو للمنطقة */
-    transform: scaleX(-1); /* لعكس الكاميرا الأمامية إذا لزم الأمر */
+    /* تم التعديل هنا: إزالة transform: scaleX(-1); لحل مشكلة قلب الكاميرا */
+    /* لو لسه مقلوبة، ممكن تجرب transform: scaleX(-1); أو transform: scaleY(-1); حسب اتجاه القلب */
     display: none; /* مخفي مبدئيًا */
 }
 

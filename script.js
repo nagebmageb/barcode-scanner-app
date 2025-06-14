@@ -16,19 +16,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     let stream;
     let worker; // Tesseract.js worker
 
-    // تهيئة Tesseract Worker
+    // تهيئة Tesseract Worker مع دعم اللغتين الإنجليزية والعربية
     async function initializeTesseract() {
-        processingStatusElement.textContent = 'جاري تحميل Tesseract.js وملفات اللغة... قد يستغرق هذا وقتًا أطول في المرة الأولى.';
+        processingStatusElement.textContent = 'جاري تحميل Tesseract.js وملفات اللغة (إنجليزية وعربية)... قد يستغرق هذا وقتًا أطول في المرة الأولى.';
         processingStatusElement.style.color = '#0056b3';
         try {
-            worker = await Tesseract.createWorker('eng', 1, {
+            // استخدام 'eng+ara' لتمكين التعرف على اللغتين
+            worker = await Tesseract.createWorker('eng+ara', 1, {
                 logger: m => {
                     if (m.status === 'loading eng.traineddata') {
-                        processingStatusElement.textContent = `جاري تحميل ملفات اللغة: ${Math.round(m.progress * 100)}%`;
+                        processingStatusElement.textContent = `جاري تحميل ملفات اللغة الإنجليزية: ${Math.round(m.progress * 100)}%`;
+                    } else if (m.status === 'loading ara.traineddata') {
+                        processingStatusElement.textContent = `جاري تحميل ملفات اللغة العربية: ${Math.round(m.progress * 100)}%`;
                     } else if (m.status === 'recognizing text') {
                         processingStatusElement.textContent = `جاري التعرف على النص: ${Math.round(m.progress * 100)}%`;
-                    } else if (m.status === 'loaded eng.traineddata') {
-                        processingStatusElement.textContent = 'ملفات اللغة جاهزة.';
+                    } else if (m.status === 'loaded eng.traineddata' && m.progress === 1) {
+                        // حالة خاصة بعد اكتمال تحميل اللغة الإنجليزية
+                    } else if (m.status === 'loaded ara.traineddata' && m.progress === 1) {
+                        // حالة خاصة بعد اكتمال تحميل اللغة العربية
+                    }
+                    // تحديث الحالة العامة فقط بعد اكتمال التحميلات
+                    if (m.status === 'initialized' && m.progress === 1) {
+                         processingStatusElement.textContent = 'Tesseract جاهز.';
+                         processingStatusElement.style.color = 'green';
                     }
                 }
             });
@@ -51,8 +61,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
+            // تفضيل الكاميرا الخلفية (environment)
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' } // استخدام الكاميرا الخلفية
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 1280 }, // جودة عالية للفيديو
+                    height: { ideal: 720 }
+                }
             });
             video.srcObject = stream;
             video.style.display = 'block';
@@ -74,6 +89,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Error accessing camera:', err);
             processingStatusElement.textContent = 'خطأ في الوصول إلى الكاميرا. الرجاء السماح بالوصول.';
             processingStatusElement.style.color = 'red';
+            // في حالة الخطأ، أظهر زر البدء مرة أخرى
+            startButton.style.display = 'inline-block';
+            stopButton.style.display = 'none';
+            captureButton.style.display = 'none';
         }
     }
 
@@ -95,7 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // وظيفة التقاط الصورة وقراءة النص
     async function captureAndRecognize() {
         if (!stream) {
-            processingStatusElement.textContent = 'الكاميرا ليست نشطة.';
+            processingStatusElement.textContent = 'الكاميرا ليست نشطة. يرجى بدء الكاميرا أولاً.';
             processingStatusElement.style.color = 'red';
             return;
         }
@@ -109,105 +128,115 @@ document.addEventListener('DOMContentLoaded', async () => {
         remainingDaysElement.textContent = '---';
         expiryStatusElement.className = '';
 
-        // تحديد المنطقة المراد قراءتها (منطقة الـ overlay)
-        const videoRatio = video.videoWidth / video.videoHeight;
-        const canvasRatio = canvas.width / canvas.height;
+        // تأكد من أن الفيديو جاهز للعرض قبل الرسم
+        if (video.readyState < video.HAVE_ENOUGH_DATA) {
+            await new Promise(resolve => video.oncanplay = resolve);
+        }
 
-        let sx, sy, sWidth, sHeight; // Source rectangle on video
-        let dx, dy, dWidth, dHeight; // Destination rectangle on canvas
-
-        // Adjust canvas size to match video and overlay
+        // ضبط أبعاد الكانفاس لتتناسب مع أبعاد الفيديو الحقيقية
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        // Calculate the crop area based on overlay dimensions
-        // Get overlay's position and size relative to video (percentage)
-        const overlayRect = overlay.getBoundingClientRect();
-        const videoRect = video.getBoundingClientRect();
+        // حساب منطقة الاقتصاص (Crop area) بناءً على الـ overlay
+        // الأوفرلاي بيشكل 80% عرض و 30% ارتفاع في منتصف الشاشة
+        const cropWidth = canvas.width * 0.8;
+        const cropHeight = canvas.height * 0.3;
+        const cropX = (canvas.width - cropWidth) / 2;
+        const cropY = (canvas.height - cropHeight) / 2;
 
-        // Calculate coordinates relative to the video frame
-        // This is a complex calculation based on how object-fit and transform scaleX(-1) might affect things.
-        // For simplicity, let's assume we're taking a central crop from the video.
-        // A more precise approach would involve getting the exact dimensions of the overlay and its position on the video stream.
-        // For now, let's target a central portion of the video as the ROI for Tesseract.
-        const cropWidth = video.videoWidth * 0.8; // 80% of video width
-        const cropHeight = video.videoHeight * 0.3; // 30% of video height (matching overlay)
-        const cropX = (video.videoWidth - cropWidth) / 2;
-        const cropY = (video.videoHeight - cropHeight) / 2;
-
-        context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height); // ارسم جزء من الفيديو على الكانفاس
+        // ارسم الجزء المحدد من الفيديو على الكانفاس
+        context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
 
         try {
             const { data: { text } } = await worker.recognize(canvas);
-            rawTextElement.textContent = text; // عرض النص الخام
+            rawTextElement.textContent = text; // عرض النص الخام المقروء
 
             // تحليل النص المستخرج للبحث عن التواريخ
             parseDates(text);
 
-            processingStatusElement.textContent = 'تمت القراءة.';
+            processingStatusElement.textContent = 'تمت القراءة بنجاح.';
             processingStatusElement.style.color = 'green';
         } catch (err) {
             console.error('Error during OCR:', err);
-            processingStatusElement.textContent = 'خطأ أثناء القراءة. حاول مرة أخرى.';
+            processingStatusElement.textContent = 'خطأ أثناء القراءة. حاول مرة أخرى. (تأكد من وضوح الصورة)';
             processingStatusElement.style.color = 'red';
         }
     }
 
-    // وظيفة تحليل التواريخ من النص (هنحتاج نعدلها لتناسب صيغك)
+    // وظيفة تحليل التواريخ من النص (محدثة لتناسب صيغ PRD و EXP)
     function parseDates(text) {
         let productionDate = null;
         let expiryDate = null;
 
-        // تعبيرات منتظمة للبحث عن الصيغ (Pyr DD/MM/YY و Xpr DD/MM/YY)
-        // بنفترض إن السنة 20XX
-        const pyrRegex = /Pyr\s*(\d{1,2})\/(\d{1,2})\/(\d{2})/i; // Pyr DD/MM/YY
-        const xprRegex = /Xpr\s*(\d{1,2})\/(\d{1,2})\/(\d{2})/i; // Xpr DD/MM/YY
+        // تعبيرات منتظمة للبحث عن الصيغ (PRD DD/MM/YY و EXP DD/MM/YY)
+        // \s* أي مسافة أو لا
+        // (\d{1,2}) أي رقم أو رقمين لليوم/الشهر
+        // (\d{2}) أي رقمين للسنة
+        const prdRegex = /(?:PRD|PYR)\s*[\*]?\s*(\d{1,2})\/(\d{1,2})\/(\d{2})/i; // PRD/PYR DD/MM/YY
+        const expRegex = /(?:EXP|XPR)\s*[\*]?\s*(\d{1,2})\/(\d{1,2})\/(\d{2})/i; // EXP/XPR DD/MM/YY
 
-        const pyrMatch = text.match(pyrRegex);
-        const xprMatch = text.match(xprRegex);
+        const prdMatch = text.match(prdRegex);
+        const expMatch = text.match(expRegex);
 
-        if (pyrMatch) {
-            const day = parseInt(pyrMatch[1]);
-            const month = parseInt(pyrMatch[2]);
-            const year = parseInt(pyrMatch[3]); // YY
-            // Convert YY to YYYY (assuming 20XX)
-            const fullYear = (year < 70) ? (2000 + year) : (1900 + year); // Simple heuristic for 20xx
-            productionDate = new Date(fullYear, month - 1, day); // month is 0-indexed
-            productionDateDisplay.textContent = `${day}/${month}/${fullYear}`;
+        // معالجة تاريخ الإنتاج
+        if (prdMatch) {
+            const day = parseInt(prdMatch[1]);
+            const month = parseInt(prdMatch[2]);
+            const year = parseInt(prdMatch[3]); // YY
+            // تحويل YY إلى XXXX (افتراض أن السنوات 2000 فما فوق)
+            // لو السنة 25، يبقى 2025، لو 98 يبقى 1998 (ده افتراض عام)
+            const fullYear = (year > (new Date().getFullYear() % 100) + 10) ? (1900 + year) : (2000 + year); // تعديل بسيط للتعامل مع السنوات المستقبلية والقريبة
+            
+            productionDate = new Date(fullYear, month - 1, day); // الشهر 0-indexed
+            // التحقق من صلاحية التاريخ قبل العرض
+            if (!isNaN(productionDate.getTime())) {
+                productionDateDisplay.textContent = `${day}/${month}/${fullYear}`;
+            } else {
+                productionDateDisplay.textContent = 'تاريخ إنتاج غير صالح';
+            }
         } else {
             productionDateDisplay.textContent = 'لم يتم العثور على تاريخ الإنتاج.';
         }
 
-        if (xprMatch) {
-            const day = parseInt(xprMatch[1]);
-            const month = parseInt(xprMatch[2]);
-            const year = parseInt(xprMatch[3]); // YY
-            const fullYear = (year < 70) ? (2000 + year) : (1900 + year); // Simple heuristic for 20xx
-            expiryDate = new Date(fullYear, month - 1, day); // month is 0-indexed
-            expiryDateDisplay.textContent = `${day}/${month}/${fullYear}`;
+        // معالجة تاريخ الانتهاء
+        if (expMatch) {
+            const day = parseInt(expMatch[1]);
+            const month = parseInt(expMatch[2]);
+            const year = parseInt(expMatch[3]); // YY
+            const fullYear = (year > (new Date().getFullYear() % 100) + 10) ? (1900 + year) : (2000 + year);
+            
+            expiryDate = new Date(fullYear, month - 1, day); // الشهر 0-indexed
+             // التحقق من صلاحية التاريخ قبل العرض
+            if (!isNaN(expiryDate.getTime())) {
+                expiryDateDisplay.textContent = `${day}/${month}/${fullYear}`;
+            } else {
+                expiryDateDisplay.textContent = 'تاريخ انتهاء غير صالح';
+            }
         } else {
             expiryDateDisplay.textContent = 'لم يتم العثور على تاريخ الانتهاء.';
         }
 
-        // لو تم العثور على تاريخ انتهاء، احسب الصلاحية
+        // لو تم العثور على تاريخ انتهاء وصالح، احسب الصلاحية
         if (expiryDate && !isNaN(expiryDate.getTime())) {
             const currentDate = new Date();
+            // تصفير الوقت الحالي للمقارنة بالتواريخ فقط
             currentDate.setHours(0, 0, 0, 0);
 
+            // مقارنة التاريخ
             const diffTime = expiryDate.getTime() - currentDate.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // الأيام المتبقية أو المنتهية
 
-            if (diffDays <= 0) {
+            if (diffDays <= 0) { // منتهي الصلاحية أو انتهى اليوم
                 expiryStatusElement.textContent = 'المنتج منتهي الصلاحية!';
                 expiryStatusElement.classList.remove('status-valid', 'status-warning', 'status-info');
                 expiryStatusElement.classList.add('status-expired');
                 remainingDaysElement.textContent = `انتهت الصلاحية منذ ${Math.abs(diffDays)} يومًا.`;
-            } else if (diffDays <= 30) {
+            } else if (diffDays <= 30) { // يقترب من الانتهاء (أقل من أو يساوي 30 يوم)
                 expiryStatusElement.textContent = 'تاريخ الانتهاء يقترب!';
                 expiryStatusElement.classList.remove('status-valid', 'status-expired', 'status-info');
                 expiryStatusElement.classList.add('status-warning');
                 remainingDaysElement.textContent = `يتبقى ${diffDays} يومًا فقط.`;
-            } else {
+            } else { // صالح
                 expiryStatusElement.textContent = 'المنتج صالح.';
                 expiryStatusElement.classList.remove('status-expired', 'status-warning', 'status-info');
                 expiryStatusElement.classList.add('status-valid');
